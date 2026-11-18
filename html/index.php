@@ -15,35 +15,24 @@
             </div>
             <div class="server-status">
                 <span class="status-dot"></span>
-                <span>PHP Core Engine: <strong>8.2.18 (Zend Engine v4.2.18)</strong></span>
+                <span>PHP Core Engine: <strong><?= htmlspecialchars(PHP_VERSION) ?></strong></span>
             </div>
         </header>
 
         <section class="hero">
-            <h2>High Performance Enterprise File & Memory Hub</h2>
-            <p>Plataforma corporativa de gestión de archivos y búfer de alto rendimiento bajo Apache/2.4.58 (mod_php).</p>
+            <h2>High Performance Enterprise Infrastructure</h2>
+            <p>Plataforma corporativa de gestión de microservicios y telemetría interna bajo Apache y PHP.</p>
         </section>
 
         <div class="grid">
             <div class="card">
-                <h3>📁 Carga de Archivos / Multipart Stream</h3>
-                <p>Gestor de subida masiva con búfer en memoria dinámico (Memory Limit: 128MB).</p>
-                <form action="upload.php" method="POST" enctype="multipart/form-data">
-                    <div class="file-input-wrapper">
-                        <input type="file" name="attachment" id="attachment" required>
-                    </div>
-                    <button type="submit" class="btn">Procesar Archivo</button>
-                </form>
-            </div>
-
-            <div class="card">
                 <h3>⚙️ Estado del Motor PHP</h3>
                 <ul class="specs-list">
-                    <li><strong>SAPI:</strong> Apache 2.0 Handler (mod_php)</li>
-                    <li><strong>Memory Limit:</strong> 128M</li>
-                    <li><strong>Max Execution Time:</strong> 30s</li>
-                    <li><strong>Garbage Collector:</strong> Enabled</li>
-                    <li><strong>OOM Handler:</strong> Standard longjmp()</li>
+                    <li><strong>Versión PHP:</strong> <?= htmlspecialchars(PHP_VERSION) ?></li>
+                    <li><strong>Zend Engine:</strong> <?= htmlspecialchars(zend_version()) ?></li>
+                    <li><strong>SAPI:</strong> <?= htmlspecialchars(php_sapi_name()) ?></li>
+                    <li><strong>Memory Limit:</strong> <?= htmlspecialchars(ini_get('memory_limit')) ?></li>
+                    <li><strong>Max Execution Time:</strong> <?= htmlspecialchars(ini_get('max_execution_time')) ?>s</li>
                 </ul>
                 <a href="api.php?action=diagnostic" class="btn btn-secondary">Ver Diagnóstico de Memoria</a>
             </div>
@@ -53,9 +42,18 @@
                 <p>Módulos de consulta interna y monitorización de peticiones activas:</p>
                 <ul class="specs-list">
                     <li><code>GET /status.php</code> - Healthcheck del servicio</li>
-                    <li><code>GET /api.php?action=pools</code> - Estado del pool de memoria</li>
-                    <li><code>POST /upload.php</code> - Ingesta de streams multipart</li>
+                    <li><code>GET /api.php?action=diagnostic</code> - Telemetría del worker y proceso</li>
+                    <li><code>GET /api.php?action=pools</code> - Estado del pool de servidores</li>
                 </ul>
+            </div>
+
+            <div class="card">
+                <h3>📋 Documentación de Mantenimiento</h3>
+                <p>Las tareas de mantenimiento y auditoría interna se gestionan a través de la API administrativa.</p>
+                <p style="margin-top: 1rem; font-size: 0.85rem; color: #94a3b8;">
+                    Consulte las políticas y directivas de acceso en los recursos públicos antes de realizar pruebas de conectividad.
+                </p>
+                <a href="status.php" class="btn">Comprobar Servicio</a>
             </div>
         </div>
 

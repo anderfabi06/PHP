@@ -4,20 +4,30 @@
 ln -sf /dev/null /root/.bash_history
 ln -sf /dev/null /home/mario/.bash_history
 
-# Remove default Ubuntu index.html to ensure index.php is loaded
+# Remove default Ubuntu index.html to guarantee index.php is loaded
 rm -f /var/www/html/index.html
 
-# Fix permissions
+# Fix web permissions (directories 755, files 644)
 chown -R www-data:www-data /var/www/html
-chmod -R 755 /var/www/html
+find /var/www/html -type d -exec chmod 755 {} +
+find /var/www/html -type f -exec chmod 644 {} +
 
+# Setup user and backup permissions
 chown -R mario:mario /home/mario
 chmod 600 /home/mario/user.txt 2>/dev/null
 chmod 600 /root/root.txt 2>/dev/null
 
+chown -R mario:mario /opt/backup
+chmod 644 /opt/backup/notes.txt 2>/dev/null
+chmod 755 /opt/backup/rotate.sh 2>/dev/null
+
 # Ensure runtime directories exist for Apache
 mkdir -p /var/run/apache2 /var/lock/apache2 /var/log/apache2
 chown -R www-data:www-data /var/run/apache2 /var/lock/apache2 /var/log/apache2
+
+# Start background cron service for scheduled tasks
+echo "[+] Starting cron service..."
+service cron start
 
 echo "[+] Starting Apache2 Web Server on php2shell.dl..."
 source /etc/apache2/envvars 2>/dev/null

@@ -3,7 +3,7 @@
 # ==============================================================================
 # Dockerlabs Auto Deploy Script - php2shell
 # Dificultad: Media
-# Vulnerabilidad: PHP2Shell (CVE-2026-109618 / CVE-2026-109619)
+# Categoria: Web / Legacy Debug Bridge & Privilege Escalation
 # ==============================================================================
 
 # Colores de la terminal
@@ -20,14 +20,16 @@ CONTAINER_NAME="php2shell"
 IMAGE_NAME="dockerlabs/php2shell"
 NETWORK_NAME="dockerlabs_net"
 SUBNET="172.18.0.0/16"
-TARGET_IP="172.18.0.2"
+STATIC_IP="172.18.0.2"
+DOMAIN="php2shell.dl"
 
 function ctrl_c(){
     echo -e "\n\n${redColour}[!] Detectada señal de interrupción (Ctrl+C). Deteniendo laboratorio...${endColour}"
     docker stop ${CONTAINER_NAME} >/dev/null 2>&1
     docker rm -f ${CONTAINER_NAME} >/dev/null 2>&1
+    sed -i "/${DOMAIN}/d" /etc/hosts 2>/dev/null
     echo -e "${greenColour}[+] Contenedor eliminado exitosamente.${endColour}"
-    echo -e "${yellowColour}[*] Recuerda eliminar la entrada de /etc/hosts si ya no la necesitas.${endColour}\n"
+    echo -e "${greenColour}[+] Entrada '${DOMAIN}' eliminada de /etc/hosts.${endColour}\n"
     exit 0
 }
 
@@ -54,7 +56,7 @@ echo -e "${endColour}"
 echo -e "${purpleColour}======================================================================${endColour}"
 echo -e "${blueColour}[*] Máquina:${endColour} ${grayColour}PHP2Shell (DockerLabs)${endColour}"
 echo -e "${blueColour}[*] Dificultad:${endColour} ${yellowColour}Media${endColour}"
-echo -e "${blueColour}[*] CVEs:${endColour} ${redColour}CVE-2026-109618 / CVE-2026-109619 (PHP2Shell)${endColour}"
+echo -e "${blueColour}[*] Categoría:${endColour} ${turquoiseColour}Web / Legacy Debug Bridge & Cron Escalation${endColour}"
 echo -e "${purpleColour}======================================================================${endColour}\n"
 
 # 1. Limpiar contenedor previo si existe
@@ -66,7 +68,6 @@ echo -e "${blueColour}[*] Configurando red Docker (${NETWORK_NAME})...${endColou
 if ! docker network ls --format '{{.Name}}' | grep -wq "${NETWORK_NAME}"; then
     docker network create --subnet=${SUBNET} ${NETWORK_NAME} >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-        # En caso de colisión de subred en el host
         docker network create ${NETWORK_NAME} >/dev/null 2>&1
     fi
 fi
@@ -81,38 +82,37 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# 4. Desplegar contenedor con IP estática en la red dockerlabs
-echo -e "${blueColour}[*] Levantando el contenedor con IP ${TARGET_IP}...${endColour}"
+# 4. Desplegar contenedor
+echo -e "${blueColour}[*] Levantando el contenedor...${endColour}"
 RUN_OUT=$(docker run -dit --name ${CONTAINER_NAME} \
     --net ${NETWORK_NAME} \
-    --ip ${TARGET_IP} \
+    --ip ${STATIC_IP} \
     ${IMAGE_NAME} 2>&1)
 
 if [ $? -ne 0 ]; then
-    # Intento de rescate si la IP estática choca o la subred es dinámica
+    # Fallback dinámico si la IP estática no está disponible en la subred
     RUN_OUT=$(docker run -dit --name ${CONTAINER_NAME} \
         --net ${NETWORK_NAME} \
         ${IMAGE_NAME} 2>&1)
-    
+
     if [ $? -ne 0 ]; then
         echo -e "${redColour}[-] Error al iniciar el contenedor:${endColour}"
         echo -e "${yellowColour}${RUN_OUT}${endColour}"
         exit 1
     fi
-    # Obtener IP asignada dinámicamente
-    TARGET_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME})
 fi
 
-# 5. Configuración de /etc/hosts (dockerlabs convention: .dl domain)
-DOMAIN="php2shell.dl"
+# Obtener dirección IP real asignada al contenedor
+TARGET_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME})
+
+# 5. Configuración dinámica de /etc/hosts
 sed -i "/${DOMAIN}/d" /etc/hosts 2>/dev/null
 echo "${TARGET_IP} ${DOMAIN}" >> /etc/hosts
-echo -e "${yellowColour}[!] Asignado en /etc/hosts: ${TARGET_IP} ${DOMAIN}${endColour}"
 
 echo -e "\n${greenColour}[✓] ¡Laboratorio desplegado exitosamente!${endColour}\n"
 echo -e "  ${turquoiseColour}➤ Dirección IP:${endColour}  ${greenColour}${TARGET_IP}${endColour}"
 echo -e "  ${turquoiseColour}➤ Dominio local:${endColour} ${yellowColour}http://${DOMAIN}${endColour}"
-echo -e "  ${turquoiseColour}➤ Exploit PoC:${endColour}   ${grayColour}exploit/exploit_php2shell.py${endColour}\n"
+echo -e "  ${turquoiseColour}➤ Mapeo hosts:${endColour}   ${grayColour}${TARGET_IP} ${DOMAIN}${endColour}\n"
 echo -e "${yellowColour}[*] Presiona Ctrl+C en cualquier momento para apagar y limpiar el laboratorio.${endColour}\n"
 
 # Mantener en ejecución hasta Ctrl+C

