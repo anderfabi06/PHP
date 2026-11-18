@@ -14,7 +14,7 @@ Laboratorio vulnerable diseñado para la plataforma **DockerLabs.es** enfocado e
 * **Dificultad:** Media
 * **Sistema Operativo:** Ubuntu 22.04 LTS (x86_64)
 * **Dominio asignado:** `php2shell.dl`
-* **Vector Inicial:** Explotación de puente de depuración heredado autenticado vía PID dinámico en `api.php`.
+* **Vector Inicial:** Uso del puente de depuración heredado autenticado vía token de instancia en `api.php`.
 * **Movimiento Lateral:** Reutilización de credencial descubierta en configuración interna de base de datos (`config_db.php`).
 * **Escalada de Privilegios:** Modificación de script de mantenimiento (`/opt/backup/rotate.sh`) ejecutado periódicamente por `root` mediante `cron`.
 * **Flags:**

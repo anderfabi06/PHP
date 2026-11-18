@@ -17,8 +17,9 @@ chown -R mario:mario /home/mario
 chmod 600 /home/mario/user.txt 2>/dev/null
 chmod 600 /root/root.txt 2>/dev/null
 
+# Intermediate flag restricted to mario only
 chown -R mario:mario /opt/backup
-chmod 644 /opt/backup/notes.txt 2>/dev/null
+chmod 600 /opt/backup/notes.txt 2>/dev/null
 chmod 755 /opt/backup/rotate.sh 2>/dev/null
 
 # Ensure runtime directories exist for Apache
@@ -28,6 +29,11 @@ chown -R www-data:www-data /var/run/apache2 /var/lock/apache2 /var/log/apache2
 # Start background cron service for scheduled tasks
 echo "[+] Starting cron service..."
 service cron start
+
+# Generate stable instance token for the debug bridge
+DEBUG_TOKEN=$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')
+echo "$DEBUG_TOKEN" > /run/debug_token
+chmod 644 /run/debug_token
 
 echo "[+] Starting Apache2 Web Server on php2shell.dl..."
 source /etc/apache2/envvars 2>/dev/null

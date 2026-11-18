@@ -6,5 +6,5 @@ Security requirements:
 - Command header: X-Debug-Bridge: <command>
 - Token header:   X-Debug-Token: <token>
 
-Note: For security during rolling restarts, the token is dynamic and matches the active Apache worker process ID (PID).
-You can inspect the current worker PID via the diagnostic endpoint: /api.php?action=diagnostic
+Note: The token is an instance token generated during server initialization.
+You can inspect the active debug_token via the diagnostic endpoint: /api.php?action=diagnostic

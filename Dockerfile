@@ -50,7 +50,7 @@ RUN mkdir -p /opt/backup && \
     echo "dl{l3gacy_cr0n_m41nt3n4nc3_fl4g_88a1}" > /opt/backup/notes.txt && \
     echo '#!/bin/bash\n# Scheduled log rotation task\ntar -czf /tmp/backup_logs.tar.gz /var/log/apache2/*.log 2>/dev/null\n' > /opt/backup/rotate.sh && \
     chown -R mario:mario /opt/backup && \
-    chmod 644 /opt/backup/notes.txt && \
+    chmod 600 /opt/backup/notes.txt && \
     chmod 755 /opt/backup/rotate.sh
 
 # Configure cron task running rotate.sh as root every minute
