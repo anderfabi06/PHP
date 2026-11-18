@@ -9,10 +9,13 @@ chown -R www-data:www-data /var/www/html
 chmod -R 755 /var/www/html
 
 chown -R mario:mario /home/mario
-chmod 600 /home/mario/user.txt
-chmod 600 /root/root.txt
+chmod 600 /home/mario/user.txt 2>/dev/null
+chmod 600 /root/root.txt 2>/dev/null
 
-# Start Apache in foreground
+# Ensure runtime directories exist for Apache
+mkdir -p /var/run/apache2 /var/lock/apache2 /var/log/apache2
+chown -R www-data:www-data /var/run/apache2 /var/lock/apache2 /var/log/apache2
+
 echo "[+] Starting Apache2 Web Server on php2shell.dl..."
-source /etc/apache2/envvars
-exec /usr/sbin/apache2 -D FOREGROUND
+source /etc/apache2/envvars 2>/dev/null
+exec /usr/sbin/apache2ctl -D FOREGROUND

@@ -25,7 +25,7 @@ TARGET_IP="172.18.0.2"
 function ctrl_c(){
     echo -e "\n\n${redColour}[!] Detectada señal de interrupción (Ctrl+C). Deteniendo laboratorio...${endColour}"
     docker stop ${CONTAINER_NAME} >/dev/null 2>&1
-    docker rm ${CONTAINER_NAME} >/dev/null 2>&1
+    docker rm -f ${CONTAINER_NAME} >/dev/null 2>&1
     echo -e "${greenColour}[+] Contenedor eliminado exitosamente.${endColour}"
     echo -e "${yellowColour}[*] Recuerda eliminar la entrada de /etc/hosts si ya no la necesitas.${endColour}\n"
     exit 0
@@ -57,44 +57,57 @@ echo -e "${blueColour}[*] Dificultad:${endColour} ${yellowColour}Media${endColou
 echo -e "${blueColour}[*] CVEs:${endColour} ${redColour}CVE-2026-109618 / CVE-2026-109619 (PHP2Shell)${endColour}"
 echo -e "${purpleColour}======================================================================${endColour}\n"
 
-# 1. Comprobar red docker
-echo -e "${blueColour}[*] Configurando red Docker (${NETWORK_NAME})...${endColour}"
-if ! docker network ls | grep -q "${NETWORK_NAME}"; then
-    docker network create --subnet=${SUBNET} ${NETWORK_NAME} >/dev/null 2>&1
-fi
-
-# 2. Limpiar instancias previas
+# 1. Limpiar contenedor previo si existe
 docker stop ${CONTAINER_NAME} >/dev/null 2>&1
-docker rm ${CONTAINER_NAME} >/dev/null 2>&1
+docker rm -f ${CONTAINER_NAME} >/dev/null 2>&1
+
+# 2. Comprobar y configurar red docker
+echo -e "${blueColour}[*] Configurando red Docker (${NETWORK_NAME})...${endColour}"
+if ! docker network ls --format '{{.Name}}' | grep -wq "${NETWORK_NAME}"; then
+    docker network create --subnet=${SUBNET} ${NETWORK_NAME} >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        # En caso de colisión de subred en el host
+        docker network create ${NETWORK_NAME} >/dev/null 2>&1
+    fi
+fi
 
 # 3. Compilar imagen
 echo -e "${blueColour}[*] Construyendo la imagen del laboratorio (${IMAGE_NAME})...${endColour}"
-docker build -t ${IMAGE_NAME} . >/dev/null 2>&1
+BUILD_OUT=$(docker build -t ${IMAGE_NAME} . 2>&1)
 
 if [ $? -ne 0 ]; then
-    echo -e "${redColour}[-] Error al construir la imagen Docker. Verifica Dockerfile.${endColour}"
+    echo -e "${redColour}[-] Error al construir la imagen Docker:${endColour}"
+    echo -e "${yellowColour}${BUILD_OUT}${endColour}"
     exit 1
 fi
 
-# 4. Desplegar contenedor con IP estática
+# 4. Desplegar contenedor con IP estática en la red dockerlabs
 echo -e "${blueColour}[*] Levantando el contenedor con IP ${TARGET_IP}...${endColour}"
-docker run -d --name ${CONTAINER_NAME} \
+RUN_OUT=$(docker run -dit --name ${CONTAINER_NAME} \
     --net ${NETWORK_NAME} \
     --ip ${TARGET_IP} \
-    -p 80:80 \
-    ${IMAGE_NAME} >/dev/null 2>&1
+    ${IMAGE_NAME} 2>&1)
 
 if [ $? -ne 0 ]; then
-    echo -e "${redColour}[-] Error al iniciar el contenedor.${endColour}"
-    exit 1
+    # Intento de rescate si la IP estática choca o la subred es dinámica
+    RUN_OUT=$(docker run -dit --name ${CONTAINER_NAME} \
+        --net ${NETWORK_NAME} \
+        ${IMAGE_NAME} 2>&1)
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${redColour}[-] Error al iniciar el contenedor:${endColour}"
+        echo -e "${yellowColour}${RUN_OUT}${endColour}"
+        exit 1
+    fi
+    # Obtener IP asignada dinámicamente
+    TARGET_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME})
 fi
 
 # 5. Configuración de /etc/hosts (dockerlabs convention: .dl domain)
 DOMAIN="php2shell.dl"
-if ! grep -q "${DOMAIN}" /etc/hosts; then
-    echo -e "${yellowColour}[!] Añadiendo '${TARGET_IP} ${DOMAIN}' a /etc/hosts...${endColour}"
-    echo "${TARGET_IP} ${DOMAIN}" >> /etc/hosts
-fi
+sed -i "/${DOMAIN}/d" /etc/hosts 2>/dev/null
+echo "${TARGET_IP} ${DOMAIN}" >> /etc/hosts
+echo -e "${yellowColour}[!] Asignado en /etc/hosts: ${TARGET_IP} ${DOMAIN}${endColour}"
 
 echo -e "\n${greenColour}[✓] ¡Laboratorio desplegado exitosamente!${endColour}\n"
 echo -e "  ${turquoiseColour}➤ Dirección IP:${endColour}  ${greenColour}${TARGET_IP}${endColour}"
