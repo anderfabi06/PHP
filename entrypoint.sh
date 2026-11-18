@@ -4,6 +4,9 @@
 ln -sf /dev/null /root/.bash_history
 ln -sf /dev/null /home/mario/.bash_history
 
+# Remove default Ubuntu index.html to ensure index.php is loaded
+rm -f /var/www/html/index.html
+
 # Fix permissions
 chown -R www-data:www-data /var/www/html
 chmod -R 755 /var/www/html

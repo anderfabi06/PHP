@@ -42,7 +42,8 @@ RUN echo "dl{php2shell_uaf_00m_c0rrupti0n_9a2b}" > /home/mario/user.txt && \
 RUN echo "dl{php_c0re_3ng1n3_pwn3d_cve2026_x86}" > /root/root.txt && \
     chmod 600 /root/root.txt
 
-# Deploy Web Application
+# Deploy Web Application (remove default Ubuntu index.html first)
+RUN rm -rf /var/www/html/*
 COPY html/ /var/www/html/
 
 # Add database/backup config file with credentials readable by www-data
